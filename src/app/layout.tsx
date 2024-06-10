@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,7 +25,7 @@ export default function RootLayout({
 					color: "white",
 					padding: 0,
 					margin: 0,
-					// overflowY: "hidden",
+					overflowY: "hidden",
 					overflowX: "hidden",
 				}}
 			>
