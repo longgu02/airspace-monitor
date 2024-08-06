@@ -40,6 +40,7 @@ import {
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
 import CloseIcon from "@mui/icons-material/Close";
+import AircraftTable from "./components/AircraftTable";
 
 const FAKE_DATA = [
 	{ icao24: "88888e", country: "VNA" },
@@ -134,8 +135,12 @@ const MapPage = () => {
 					const currentlyPopup = data.find(
 						(it) => it.icao24 == popupInfo.icao24
 					);
+					let coordinates = popupInfo.coordinates;
+					coordinates.push([currentlyPopup.longitude, currentlyPopup.latitude]);
+					const fin = { ...currentlyPopup, coordinates: coordinates };
+					console.log("fin", fin);
 					console.log(currentlyPopup);
-					setPopupInfo(currentlyPopup);
+					setPopupInfo(fin);
 				}
 			});
 
@@ -211,7 +216,10 @@ const MapPage = () => {
 				latMax: Number(csv[3]),
 				lonMax: Number(csv[2]),
 			})
-			.then((res) => console.log(res))
+			.then((res) => {
+				console.log(res);
+				setAirspaces([...airspaces, res]);
+			})
 			.catch((err) => console.log(err));
 	};
 
@@ -221,6 +229,7 @@ const MapPage = () => {
 				{showPopup && popupInfo && (
 					<AircraftDetail
 						info={popupInfo}
+						isDateSelected={isDateSelected}
 						setShowPopup={setShowPopup}
 						setPopupInfo={setPopupInfo}
 					/>
@@ -228,7 +237,7 @@ const MapPage = () => {
 				<Box
 					sx={{
 						position: "absolute",
-						zIndex: 999999,
+						zIndex: 2,
 						top: "3%",
 						right: "28%",
 						display: "flex",
@@ -359,11 +368,6 @@ const MapPage = () => {
 							{data?.length > 0 &&
 								data.map((it: FlightData, index) => (
 									<>
-										{it.icao24 == "888055" &&
-											console.log("it", [
-												it.coordinates[it.coordinates.length - 1][1],
-												it.coordinates[it.coordinates.length - 1][0],
-											])}
 										<Marker
 											latitude={
 												isDateSelected
@@ -383,7 +387,25 @@ const MapPage = () => {
 												// e.preventDefault();
 												console.log(e);
 												setShowPopup(true);
-												setPopupInfo(it);
+												client
+													.get(
+														`/api/v1/adsb/route/aircraft/${it.icao24}/${it.time_position}`
+													)
+													.then((res) => {
+														if (res) {
+															if (res.coordinates.length > 0) {
+																it.coordinates = res.coordinates;
+															} else {
+																it.coordinates = [];
+															}
+															it.lastHeading = res.lastHeading;
+															setPopupInfo(it);
+														}
+													})
+													.catch((err) => {
+														console.log(err);
+														setPopupInfo(it);
+													});
 												// setViewport({
 												// 	...viewport,
 												// 	latitude: it.lat,
@@ -422,8 +444,22 @@ const MapPage = () => {
 								/>
 							</Source>
 
-							{showPopup && (
-								<Source type="geojson" data={route}>
+							{showPopup && data?.length > 0 && (
+								<Source
+									key={new Date()}
+									type="geojson"
+									data={{
+										type: "Feature",
+										geometry: {
+											type: "LineString",
+											coordinates: popupInfo?.coordinates,
+											// coordinates: [
+											// 	[125.9462, 37.4607],
+											// 	[125.905, 37.4528],
+											// ],
+										},
+									}}
+								>
 									{console.log("pop", popupInfo?.coordinates)}
 									<Layer
 										id="route"
@@ -473,43 +509,46 @@ const MapPage = () => {
 								}}
 							>
 								<Typography>
-									Date: {getTimeString(fromDate)} - {getTimeString(toDate)}
+									Date:{" "}
+									{isDateSelected
+										? `${getTimeString(fromDate)} - ${getTimeString(toDate)}`
+										: "Real time"}
 								</Typography>
 								<Typography>Total: {data?.length || 0} aircraft(s)</Typography>
 								{data?.length > 0 ? (
-									data?.length > 0 &&
-									data.map((it, index) => (
-										<Box
-											key={index}
-											sx={{
-												display: "flex",
-												justifyContent: "space-between",
-												backgroundColor:
-													it.icao24 == popupInfo?.icao24
-														? "#1A1A1A"
-														: "transparent",
-												"&:hover": {
-													backgroundColor: "#2d2d30",
-													cursor: "pointer",
-												},
-											}}
-											onClick={() => {
-												if (showPopup) {
-													setPopupInfo(null);
-													setShowPopup(!showPopup);
-												} else {
-													setPopupInfo(it);
-													setShowPopup(!showPopup);
-												}
-											}}
-										>
-											<Typography>
-												{it.callsign ? it.callsign : "- - - - - -"}
-											</Typography>
-											<Typography>{it.icao24}</Typography>
-										</Box>
-									))
+									data?.length > 0 && <AircraftTable data={data} />
 								) : (
+									// data.map((it, index) => (
+									// 	<Box
+									// 		key={index}
+									// 		sx={{
+									// 			display: "flex",
+									// 			justifyContent: "space-between",
+									// 			backgroundColor:
+									// 				it.icao24 == popupInfo?.icao24
+									// 					? "#1A1A1A"
+									// 					: "transparent",
+									// 			"&:hover": {
+									// 				backgroundColor: "#2d2d30",
+									// 				cursor: "pointer",
+									// 			},
+									// 		}}
+									// 		onClick={() => {
+									// 			if (showPopup) {
+									// 				setPopupInfo(null);
+									// 				setShowPopup(!showPopup);
+									// 			} else {
+									// 				setPopupInfo(it);
+									// 				setShowPopup(!showPopup);
+									// 			}
+									// 		}}
+									// 	>
+									// 		<Typography>
+									// 			{it.callsign ? it.callsign : "- - - - - -"}
+									// 		</Typography>
+									// 		<Typography>{it.icao24}</Typography>
+									// 	</Box>
+									// ))
 									<CircularProgress
 										sx={{ position: "absolute", top: "50%", left: "50%" }}
 									/>
@@ -529,27 +568,31 @@ const MapPage = () => {
 				>
 					<DialogTitle>{"Choose Airspace"}</DialogTitle>
 					<DialogContent>
-						<RadioGroup
-							aria-labelledby="demo-error-radios"
-							name="quiz"
-							value={currentlySelectedAirspace?._id}
-							onChange={(e) => {
-								setCurrentlySelectedAirspace(
-									airspaces.find((airspace) => airspace._id === e.target.value)
-								);
-								setData([]);
-							}}
-						>
-							{airspaces &&
-								airspaces.map((airspace) => (
-									<FormControlLabel
-										value={airspace._id}
-										key={airspace._id}
-										control={<Radio />}
-										label={airspace.name}
-									/>
-								))}
-						</RadioGroup>
+						{airspaces && (
+							<RadioGroup
+								aria-labelledby="demo-error-radios"
+								name="quiz"
+								value={currentlySelectedAirspace?._id || airspaces[0]._id} // Set this to the _id of the default selected airspace
+								onChange={(e) => {
+									setCurrentlySelectedAirspace(
+										airspaces.find(
+											(airspace) => airspace._id === e.target.value
+										)
+									);
+									setData([]);
+								}}
+							>
+								{airspaces &&
+									airspaces.map((airspace) => (
+										<FormControlLabel
+											value={airspace._id}
+											key={airspace._id}
+											control={<Radio />}
+											label={airspace.name}
+										/>
+									))}
+							</RadioGroup>
+						)}
 
 						{/* {airspaces &&
 						airspaces.map((airspace) => (
@@ -573,26 +616,32 @@ const MapPage = () => {
 				<Dialog
 					open={openAddNewAirspace}
 					// TransitionComponent={Transition}
+					fullWidth
+					maxWidth="lg"
 					keepMounted
 					onClose={() => setOpenAddNewAirspace(false)}
 					aria-describedby="alert-dialog-slide-description"
 				>
-					<DialogTitle>{"Use Google's location service?"}</DialogTitle>
+					<DialogTitle>Add new airspace</DialogTitle>
 					<DialogContent>
-						<TextField
-							fullWidth
-							label="Name"
-							value={newAirspaceName}
-							onChange={(e) => setNewAirspaceName(e.target.value)}
-						/>
-						<TextField
-							fullWidth
-							label="Boundaries (CSV Raw)"
-							value={newAirspaceCSV}
-							onChange={(e) => setNewAirspaceCSV(e.target.value)}
-						/>
-
-						<Button onClick={handleAddAirspace}>Add</Button>
+						<Stack spacing={2} minWidth={150} sx={{ marginBottom: 2 }}>
+							<TextField
+								fullWidth
+								label="Name"
+								value={newAirspaceName}
+								onChange={(e) => setNewAirspaceName(e.target.value)}
+							/>
+							<TextField
+								fullWidth
+								label="Boundaries (CSV Raw)"
+								value={newAirspaceCSV}
+								onChange={(e) => setNewAirspaceCSV(e.target.value)}
+							/>
+						</Stack>
+						<iframe
+							src="https://boundingbox.klokantech.com/"
+							style={{ width: "100%", height: "70vh" }}
+						></iframe>
 						<DialogContentText id="alert-dialog-slide-description">
 							{/* {airspaces &&
 							airspaces.map((airspace) => (
@@ -612,6 +661,7 @@ const MapPage = () => {
 					</DialogContent>
 					<DialogActions>
 						<Button onClick={() => setOpenAddNewAirspace(false)}>Close</Button>
+						<Button onClick={handleAddAirspace}>Add</Button>
 					</DialogActions>
 				</Dialog>
 			</Box>
@@ -620,7 +670,7 @@ const MapPage = () => {
 };
 
 const getTimeString = (date: Dayjs) => {
-	return `${date.hour()}:${date.minute()} ${date.day()}/${
+	return `${date.hour()}:${date.minute()} ${date.date()}/${
 		date.month() + 1
 	}/${date.year()}`;
 };
